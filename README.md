@@ -130,7 +130,7 @@ Now, it turns out your QA detects font problems. Logic! `app` cannot contact `fo
 # Staging deployment
 version: "2.0"
 services:
-    fonts_api_proxy:
+    fonts_googleapis_proxy:
         image: tecnativa/whitelist
         environment:
             TARGET: fonts.googleapis.com
@@ -142,6 +142,17 @@ services:
                     - fonts.googleapis.com
             # We need public access to "open the door"
             public:
+
+    fonts_gstatic_proxy:
+        image: tecnativa/whitelist
+        networks:
+            default:
+                aliases:
+                    - fonts.gstatic.com
+            public:
+        environment:
+            TARGET: fonts.gstatic.com
+            PRE_RESOLVE: 1
 
     proxy:
         image: traefik

@@ -39,6 +39,7 @@ async def netcat(port):
 
 # Wait until all proxies exited, if they ever do
 try:
+    loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(*map(netcat, ports)))
 finally:
     loop.run_until_complete(loop.shutdown_asyncgens())

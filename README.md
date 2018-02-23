@@ -37,7 +37,7 @@ Only used when [pre-resolving](#pre-resolve) is enabled.
 
 ### `PORT`
 
-Default: `443`. If you're proxying HTTPS services, no need to specify!
+Default: `80 443`. If you're proxying HTTP/S services, no need to specify!
 
 The port where this service will listen, and where the [target](#target) service is expected to be listening on also.
 

@@ -5,6 +5,10 @@
 [![Commit](https://images.microbadger.com/badges/commit/tecnativa/whitelist.svg)](https://microbadger.com/images/tecnativa/whitelist)
 [![License](https://images.microbadger.com/badges/license/tecnativa/whitelist.svg)](https://microbadger.com/images/tecnativa/whitelist)
 
+# ⚠️ THIS PROJECT IS DEPRECATED ⚠️ 
+
+Its short lifetime is due to some stability problems in netcat implementation. Its special features have been moved to [tecnativa/tcp-proxy](https://hub.docker.com/r/tecnativa/tcp-proxy/), which uses the more reliable HAProxy. Use that now.
+
 ## What?
 
 A whitelist proxy that uses netcat. 🔌😼

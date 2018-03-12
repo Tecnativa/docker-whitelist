@@ -17,12 +17,12 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
 LABEL org.label-schema.build-date="$BUILD_DATE" \
-    org.label-schema.name="Doodba QA" \
-    org.label-schema.description="QA tools for Doodba projects" \
+    org.label-schema.name="Docker Whitelist" \
+    org.label-schema.description="Simple whitelist proxy" \
     org.label-schema.license=Apache-2.0 \
     org.label-schema.url="https://www.tecnativa.com" \
     org.label-schema.vcs-ref="$VCS_REF" \
-    org.label-schema.vcs-url="https://github.com/Tecnativa/doodba-qa" \
+    org.label-schema.vcs-url="https://github.com/Tecnativa/docker-whitelist" \
     org.label-schema.vendor="Tecnativa" \
     org.label-schema.version="$VERSION" \
     org.label-schema.schema-version="1.0"

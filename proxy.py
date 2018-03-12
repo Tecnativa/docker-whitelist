@@ -22,15 +22,12 @@ if os.environ["PRE_RESOLVE"] == "1":
 @asyncio.coroutine
 async def netcat(port):
     # Use a persistent BusyBox netcat server in listening mode
-    command = ["nc", "-lkp", port]
-    # UDP mode
-    if os.environ["UDP"] == "1":
-        command.append("-u")
+    command = ["socat"]
     # Verbose mode
     if os.environ["VERBOSE"] == "1":
         command.append("-v")
-    # Netcat to target IP when a connection comes in
-    command += ["-e", "nc", ip, port]
+    command += [f"tcp-listen:{port},fork,reuseaddr",
+                f"tcp-connect:{ip}:{port}"]
     # Create the process and wait until it exits
     logging.info("Executing: %s", " ".join(command))
     process = await asyncio.create_subprocess_exec(*command)

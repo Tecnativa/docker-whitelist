@@ -11,7 +11,7 @@ Its short lifetime is due to some stability problems in netcat implementation. I
 
 ## What?
 
-A whitelist proxy that uses netcat. 🔌😼
+A whitelist proxy that uses socat. 🔌😼
 
 ## Why?
 

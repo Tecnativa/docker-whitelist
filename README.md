@@ -32,6 +32,11 @@ Use these environment variables:
 
 Required. It's the host name where the incoming connections will be redirected to.
 
+### `MODE`
+
+Default: `tcp`
+
+Set to `udp` to proxy in UDP mode.
 
 ### `NAMESERVERS`
 
@@ -52,12 +57,6 @@ Default: `0`
 Set to `1` to force using the specified [nameservers](#nameservers) to resolve the [target](#target) before proxying.
 
 This is especially useful when using a network alias to whitelist an external API.
-
-### `UDP`
-
-Default: `0`
-
-Set to `1` to proxy in UDP mode.
 
 ### `VERBOSE`
 

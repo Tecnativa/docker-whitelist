@@ -8,6 +8,7 @@ import random
 from dns.resolver import Resolver
 
 logging.root.setLevel(logging.INFO)
+mode = os.environ["MODE"]
 ports = os.environ["PORT"].split()
 ip = target = os.environ["TARGET"]
 
@@ -26,8 +27,8 @@ async def netcat(port):
     # Verbose mode
     if os.environ["VERBOSE"] == "1":
         command.append("-v")
-    command += [f"tcp-listen:{port},fork,reuseaddr",
-                f"tcp-connect:{ip}:{port}"]
+    command += [f"{mode}-listen:{port},fork,reuseaddr",
+                f"{mode}-connect:{ip}:{port}"]
     # Create the process and wait until it exits
     logging.info("Executing: %s", " ".join(command))
     process = await asyncio.create_subprocess_exec(*command)

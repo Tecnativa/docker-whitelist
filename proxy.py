@@ -10,6 +10,7 @@ from dns.resolver import Resolver
 logging.root.setLevel(logging.INFO)
 mode = os.environ["MODE"]
 ports = os.environ["PORT"].split()
+max_connections = os.environ.get("MAX_CONNECTIONS", 100)
 ip = target = os.environ["TARGET"]
 
 # Resolve target if required
@@ -27,7 +28,7 @@ async def netcat(port):
     # Verbose mode
     if os.environ["VERBOSE"] == "1":
         command.append("-v")
-    command += [f"{mode}-listen:{port},fork,reuseaddr",
+    command += [f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",
                 f"{mode}-connect:{ip}:{port}"]
     # Create the process and wait until it exits
     logging.info("Executing: %s", " ".join(command))

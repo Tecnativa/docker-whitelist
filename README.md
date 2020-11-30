@@ -43,7 +43,7 @@ Limits the maximum number of accepted connections at once per port.
 #### Setting "unlimited" connections
 
 For each port and open connection a subprocess is spawned. Setting
-a number to high might make your host system unresponsive and prevent you from
+a number too high might make your host system unresponsive and prevent you from
 logging in to it. So be very careful with setting this setting to a large number.
 
 The typical linux system can handle up to 32768 so if you need a lot more

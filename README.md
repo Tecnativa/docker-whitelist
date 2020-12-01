@@ -34,6 +34,36 @@ Default: `tcp`
 
 Set to `udp` to proxy in UDP mode.
 
+### `MAX_CONNECTIONS`
+
+Default: `100`
+
+Limits the maximum number of accepted connections at once per port.
+
+#### Setting "unlimited" connections
+
+For each port and open connection a subprocess is spawned. Setting
+a number too high might make your host system unresponsive and prevent you from
+logging in to it. So be very careful with setting this setting to a large number.
+
+The typical linux system can handle up to 32768 so if you need a lot more
+parallel open connections make sure to also set the corresponding variables
+on your host system. See
+https://stackoverflow.com/questions/6294133/maximum-pid-in-linux for reference.
+And divide this number by at least the number of ports you are running through
+ docker-whitelist.
+
+#### What happens when the limit is hit?
+
+docker-whitelist basically starts `socat` so the behaviour is the same. In case
+no more subprocesses can be forked:
+ * UDP mode: You won't see a difference on the connecting side. But no more
+ packets are forwarded for new connections until the number of connections for
+ this port is reduced.
+ * TCP mode: docker-whitelist no longer accepts the connection and your
+ connection will wait until the number of connections for this port is reduced.
+ Your connection may time out.
+
 ### `NAMESERVERS`
 
 Default: `208.67.222.222 8.8.8.8 208.67.220.220 8.8.4.4` to use OpenDNS and Google DNS resolution servers by default.

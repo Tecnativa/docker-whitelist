@@ -12,6 +12,7 @@ mode = os.environ["MODE"]
 ports = os.environ["PORT"].split()
 max_connections = os.environ.get("MAX_CONNECTIONS", 100)
 ip = target = os.environ["TARGET"]
+udp_answers = os.environ.get("UDP_ANSWERS", "1")
 
 # Resolve target if required
 if os.environ["PRE_RESOLVE"] == "1":
@@ -28,8 +29,11 @@ async def netcat(port):
     # Verbose mode
     if os.environ["VERBOSE"] == "1":
         command.append("-v")
-    command += [f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",
-                f"{mode}-connect:{ip}:{port}"]
+    if mode.lower() == "udp" and udp_answers == "0":
+        command += [f"udp-recv:{port},reuseaddr", f"udp-sendto:{ip}:{port}"]
+    else:
+        command += [f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",
+                    f"{mode}-connect:{ip}:{port}"]
     # Create the process and wait until it exits
     logging.info("Executing: %s", " ".join(command))
     process = await asyncio.create_subprocess_exec(*command)

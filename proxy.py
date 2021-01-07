@@ -29,7 +29,7 @@ async def netcat(port):
     # Verbose mode
     if os.environ["VERBOSE"] == "1":
         command.append("-v")
-    if mode.lower() == "udp" and udp_answers == "0":
+    if mode == "udp" and udp_answers == "0":
         command += [f"udp-recv:{port},reuseaddr", f"udp-sendto:{ip}:{port}"]
     else:
         command += [f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",

@@ -84,6 +84,15 @@ Set to `1` to force using the specified [nameservers](#nameservers) to resolve t
 
 This is especially useful when using a network alias to whitelist an external API.
 
+### `UDP_ANSWERS`
+
+Default: `1`
+
+`1` means the process will wait for an answer from the server before the forked child process terminates (until this happens the connection counts towards the connection limit).
+Set to `0` if no answers are expected from the server, this prevents subprocesses waiting for an answer indefinitely.
+
+Setting to `0` is recommended if you are using this to connect to a syslog server like graylog.
+
 ### `VERBOSE`
 
 Default: `0`

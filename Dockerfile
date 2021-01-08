@@ -10,7 +10,8 @@ ENV NAMESERVERS="208.67.222.222 8.8.8.8 208.67.220.220 8.8.4.4" \
     PRE_RESOLVE=0 \
     MODE=tcp \
     VERBOSE=0 \
-    MAX_CONNECTIONS=100
+    MAX_CONNECTIONS=100 \
+    UDP_ANSWERS=1
 COPY proxy.py /usr/local/bin/proxy
 
 # Labels

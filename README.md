@@ -1,5 +1,6 @@
 [![Last image-template](https://img.shields.io/badge/last%20template%20update-v0.1.3-informational)](https://github.com/Tecnativa/image-template/tree/v0.1.3)
 [![GitHub Container Registry](https://img.shields.io/badge/GitHub%20Container%20Registry-latest-%2324292e)](https://github.com/orgs/Tecnativa/packages/container/package/docker-whitelist)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-latest-%23099cec)](https://hub.docker.com/r/tecnativa/whitelist)
 [![Docker Pulls](https://img.shields.io/docker/pulls/tecnativa/whitelist.svg)](https://hub.docker.com/r/tecnativa/whitelist)
 [![Layers](https://images.microbadger.com/badges/image/tecnativa/whitelist.svg)](https://microbadger.com/images/tecnativa/whitelist)
 [![Commit](https://images.microbadger.com/badges/commit/tecnativa/whitelist.svg)](https://microbadger.com/images/tecnativa/whitelist)

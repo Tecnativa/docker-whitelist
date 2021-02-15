@@ -32,8 +32,10 @@ async def netcat(port):
     if mode == "udp" and udp_answers == "0":
         command += [f"udp-recv:{port},reuseaddr", f"udp-sendto:{ip}:{port}"]
     else:
-        command += [f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",
-                    f"{mode}-connect:{ip}:{port}"]
+        command += [
+            f"{mode}-listen:{port},fork,reuseaddr,max-children={max_connections}",
+            f"{mode}-connect:{ip}:{port}",
+        ]
     # Create the process and wait until it exits
     logging.info("Executing: %s", " ".join(command))
     process = await asyncio.create_subprocess_exec(*command)

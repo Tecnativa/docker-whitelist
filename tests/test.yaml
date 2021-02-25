@@ -1,0 +1,152 @@
+version: "3.8"
+services:
+  autoheal:
+    image: willfarrell/autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_INTERVAL: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  proxy_preresolve:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        autoheal: "true"
+    depends_on:
+      - target
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_preresolve.example.com
+      simulated_outside:
+    environment:
+      TARGET: target.example.com
+      PRE_RESOLVE: 1
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      HTTP_HEALTHCHECK: 1
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  proxy_without_preresolve:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        autoheal: "true"
+    depends_on:
+      - target
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_without_preresolve.example.com
+      simulated_outside:
+    environment:
+      TARGET: target.example.com
+      # use no pre resolving (target gets resolved on every request)
+      PRE_RESOLVE: 0
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      HTTP_HEALTHCHECK: 1
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  proxy_smtp:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        autoheal: "true"
+    depends_on:
+      - target_smtp
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_smtp.example.com
+      simulated_outside:
+    environment:
+      TARGET: smtp.example.com
+      PORT: 1025
+      PRE_RESOLVE: 1
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      SMTP_HEALTHCHECK: 1
+      SMTP_HEALTHCHECK_URL: "smtp://$$TARGET:1025/"
+      # mailhog doesn't support HELP command
+      SMTP_HEALTHCHECK_COMMAND: "QUIT"
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  target:
+    image: nginx
+    networks:
+      simulated_outside:
+        aliases:
+          - target.example.com
+
+  target_smtp:
+    image: mailhog/mailhog
+    networks:
+      simulated_outside:
+        aliases:
+          - smtp.example.com
+
+  test_ping:
+    image: bash
+    depends_on:
+      - proxy_preresolve
+      - proxy_without_preresolve
+    # ping all proxies (to make sure it is supported)
+    command:
+      bash -c 'ping -c 1 target_preresolve.example.com && ping -c 1
+      target_without_preresolve.example.com'
+
+  test_wait:
+    image: bash
+    depends_on:
+      - proxy_preresolve
+    # wait 5 seconds (default dns timeout for proxies)
+    command: timeout 10 sleep 5
+
+  test_proxy_preresolve:
+    image: curlimages/curl
+    depends_on:
+      - proxy_preresolve
+    command: timeout 10 curl -v 'target_preresolve.example.com'
+
+  test_proxy_without_preresolve:
+    image: curlimages/curl
+    depends_on:
+      - proxy_without_preresolve
+    command: timeout 10 curl -v 'target_without_preresolve.example.com'
+
+  test_proxy_smtp:
+    image: curlimages/curl
+    depends_on:
+      - proxy_smtp
+    # -X QUIT because mailhog doesn't support HELP
+    command: timeout 10 curl -v 'smtp://target_smtp.example.com:1025' -X QUIT
+
+networks:
+  # we do not allow communication to the outside
+  simulated_outside:
+    internal: true
+  default:
+    internal: true

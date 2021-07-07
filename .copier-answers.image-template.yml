@@ -10,6 +10,6 @@ main_branches:
 project_name: docker-whitelist
 project_owner: Tecnativa
 push_to_ghcr: true
-pytest: false
+pytest: true
 python_versions:
   - "3.9"

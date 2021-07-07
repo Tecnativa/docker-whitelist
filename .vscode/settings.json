@@ -1,0 +1,5 @@
+{
+  "cSpell.words": ["pytest"],
+  "python.pythonPath": ".venv/bin/python",
+  "python.testing.pytestEnabled": true
+}

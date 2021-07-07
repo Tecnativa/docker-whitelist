@@ -1,7 +1,9 @@
 import logging
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+from plumbum import local
 from plumbum.cmd import docker
 
 _logger = logging.getLogger(__name__)
@@ -39,3 +41,35 @@ def image(request):
         )
         assert not retcode, "Image build failed"
     return image
+
+
+@pytest.fixture(scope="session")
+def container_factory(image):
+    """A context manager that starts the docker container."""
+
+    @contextmanager
+    def _container(target):
+        container_id = None
+        _logger.info(f"Starting {image} container")
+        try:
+            container_id = docker(
+                "container",
+                "run",
+                "--detach",
+                "-e",
+                "TARGET=%s" % target,
+                image,
+            ).strip()
+            with local.env():
+                yield container_id
+        finally:
+            if container_id:
+                _logger.info(f"Removing {container_id}...")
+                docker(
+                    "container",
+                    "rm",
+                    "-f",
+                    container_id,
+                )
+
+    return _container

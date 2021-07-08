@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       AUTOHEAL_INTERVAL: 1
+      AUTOHEAL_CONTAINER_LABEL: "AUTOHEAL_${COMPOSE_PROJECT_NAME}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -13,7 +14,7 @@ services:
       dockerfile: Dockerfile
       context: ..
       labels:
-        autoheal: "true"
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
     depends_on:
       - target
       - autoheal
@@ -40,7 +41,7 @@ services:
       dockerfile: Dockerfile
       context: ..
       labels:
-        autoheal: "true"
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
     depends_on:
       - target
       - autoheal
@@ -68,7 +69,7 @@ services:
       dockerfile: Dockerfile
       context: ..
       labels:
-        autoheal: "true"
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
     depends_on:
       - target_smtp
       - autoheal
@@ -107,42 +108,6 @@ services:
       simulated_outside:
         aliases:
           - smtp.example.com
-
-  test_ping:
-    image: bash
-    depends_on:
-      - proxy_preresolve
-      - proxy_without_preresolve
-    # ping all proxies (to make sure it is supported)
-    command:
-      bash -c 'ping -c 1 target_preresolve.example.com && ping -c 1
-      target_without_preresolve.example.com'
-
-  test_wait:
-    image: bash
-    depends_on:
-      - proxy_preresolve
-    # wait 5 seconds (default dns timeout for proxies)
-    command: timeout 10 sleep 5
-
-  test_proxy_preresolve:
-    image: curlimages/curl
-    depends_on:
-      - proxy_preresolve
-    command: timeout 10 curl -v 'target_preresolve.example.com'
-
-  test_proxy_without_preresolve:
-    image: curlimages/curl
-    depends_on:
-      - proxy_without_preresolve
-    command: timeout 10 curl -v 'target_without_preresolve.example.com'
-
-  test_proxy_smtp:
-    image: curlimages/curl
-    depends_on:
-      - proxy_smtp
-    # -X QUIT because mailhog doesn't support HELP
-    command: timeout 10 curl -v 'smtp://target_smtp.example.com:1025' -X QUIT
 
 networks:
   # we do not allow communication to the outside

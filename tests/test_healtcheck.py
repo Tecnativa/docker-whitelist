@@ -6,8 +6,8 @@ from time import sleep
 
 import plumbum.commands.processes
 import pytest
-from plumbum import local
-from plumbum.cmd import docker, docker_compose
+from plumbum import TF, local
+from plumbum.cmd import docker, docker_compose, which
 
 HEALTHCHECK_YAML = os.path.abspath("tests/healthcheck.yaml")
 
@@ -70,13 +70,25 @@ def _sha256(text):
     return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
 
 
+@pytest.fixture(scope="session")
+def os_needs_privileges():
+    if which["getenforce"] & TF:
+        # if we can find getenforce on the current system, SELinux is probably installed and we need to start
+        # autoheal with privileges
+        return "true"
+    return "false"
+
+
 @pytest.fixture(scope="function", autouse=True)
-def _cleanup_docker_compose(tmp_path):
+def _cleanup_docker_compose(tmp_path, os_needs_privileges):
     with local.cwd(tmp_path):
         custom_compose_project_name = "{}_{}".format(
             os.path.basename(tmp_path), _sha256(tmp_path)[:6]
         )
-        with local.env(COMPOSE_PROJECT_NAME=custom_compose_project_name) as env:
+        with local.env(
+            COMPOSE_PROJECT_NAME=custom_compose_project_name,
+            OS_NEEDS_PRIVILEGES_FOR_DOCKER_SOCK=os_needs_privileges,
+        ) as env:
             yield env
 
             # stop autoheal first to prevent it from restarting containers to be stopped

@@ -6,6 +6,7 @@ services:
     environment:
       AUTOHEAL_INTERVAL: 1
       AUTOHEAL_CONTAINER_LABEL: "AUTOHEAL_${COMPOSE_PROJECT_NAME}"
+    privileged: "${OS_NEEDS_PRIVILEGES_FOR_DOCKER_SOCK:-false}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

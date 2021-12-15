@@ -58,6 +58,13 @@ Default: `http://$TARGET/`
 Url to use in [`HTTP_HEALTHCHECK`](#http_healthcheck) if enabled. `$TARGET` gets
 replaced inside the url by the configured [`TARGET`](#target).
 
+### `HTTP_HEALTHCHECK_TIMEOUT_MS`
+
+Default: `2000`
+
+Timeout in milliseconds for http healthcheck. This is used as a timeout for connecting
+and receiving an answer. You may end up with twice the time spend.
+
 ### `MODE`
 
 Default: `tcp`
@@ -142,6 +149,13 @@ Default: `HELP`
 
 Enables changing the healthcheck command for servers that do not support `HELP` (e.g.
 for [MailHog](https://github.com/mailhog/MailHog) you can use `QUIT`)
+
+### `SMTP_HEALTHCHECK_TIMEOUT_MS`
+
+Default: `2000`
+
+Timeout in milliseconds for smtp healthcheck. This is used as a timeout for connecting
+and receiving an answer. You may end up with twice the time spend.
 
 ### `UDP_ANSWERS`
 

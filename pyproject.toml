@@ -14,6 +14,7 @@ black = {version = "^20.8b1", allow-prereleases = true}
 flake8 = "^3.8.4"
 plumbum = "^1.6.9"
 pytest-xdist = "^2.1.0"
+pytest-timeout = "^2.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

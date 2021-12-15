@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os.path
+from datetime import datetime
 from time import sleep
 
 import plumbum.commands.processes
@@ -112,6 +113,8 @@ def test_healthcheck_ok(proxy, target):
 def test_healthcheck_failing(proxy, target):
     # given a started proxy with healthcheck
     _healthcheck("up", "-d", proxy)
+    # and autoheal not interfering
+    _healthcheck("stop", "autoheal")
 
     # when target is not reachable
     _healthcheck("stop", target)
@@ -123,6 +126,38 @@ def test_healthcheck_failing(proxy, target):
         match=r"Unexpected exit code: (1|137)",
     ):
         _healthcheck("exec", "-T", proxy, "healthcheck")
+
+
+@pytest.mark.parametrize("proxy,target", PROXY_TARGET_PAIRS)
+@pytest.mark.timeout(30)
+def test_healthcheck_failing_firewalled(proxy, target):
+    # given a started proxy with healthcheck
+    _healthcheck("up", "-d", proxy)
+    # and autoheal not interfering
+    _healthcheck("stop", "autoheal")
+
+    # when target stops responding
+    _healthcheck("stop", target)
+    assert " Exit " in _healthcheck("ps", target)
+    _healthcheck(
+        "up", "-d", "{target:s}_firewalled_not_responding".format(target=target)
+    )
+    assert "Up" in _healthcheck(
+        "ps", "{target:s}_firewalled_not_responding".format(target=target)
+    )
+
+    # then healthcheck should return an error (non zero exit code)
+    with pytest.raises(
+        plumbum.commands.processes.ProcessExecutionError,
+        match=r"Unexpected exit code: (1|137)",
+    ):
+        start = datetime.now()
+        _healthcheck("exec", "-T", proxy, "healthcheck")
+    end = datetime.now()
+    # timeout is set to 200ms for tests, so the exception should be raised at earliest after 0.2s
+    # and at most 2s after starting considering overhead
+    # if it happens outside that timeframe (especially before 0.2s) the exception might hint to another error type
+    assert 0.2 < (end - start).total_seconds() < 2
 
 
 @pytest.mark.parametrize(

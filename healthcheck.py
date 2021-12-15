@@ -25,6 +25,7 @@ def http_healthcheck():
     import pycurl
 
     check_url = os.environ.get("HTTP_HEALTHCHECK_URL", "http://localhost/")
+    check_timeout_ms = int(os.environ.get("HTTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
     port = re.search("https?://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "80"
@@ -36,6 +37,8 @@ def http_healthcheck():
         # do not send the request to the target directly but use our own socat proxy process to check if it's still
         # working
         request.setopt(pycurl.RESOLVE, ["{}:{}:127.0.0.1".format(target, port)])
+        request.setopt(pycurl.CONNECTTIMEOUT_MS, check_timeout_ms)
+        request.setopt(pycurl.TIMEOUT_MS, check_timeout_ms)
         request.perform()
         request.close()
     except pycurl.error as e:
@@ -53,6 +56,7 @@ def smtp_healthcheck():
 
     check_url = os.environ.get("SMTP_HEALTHCHECK_URL", "smtp://localhost/")
     check_command = os.environ.get("SMTP_HEALTHCHECK_COMMAND", "HELP")
+    check_timeout_ms = int(os.environ.get("SMTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
     port = re.search("smtp://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "25"
@@ -64,6 +68,8 @@ def smtp_healthcheck():
         # do not send the request to the target directly but use our own socat proxy process to check if it's still
         # working
         request.setopt(pycurl.RESOLVE, ["{}:{}:127.0.0.1".format(target, port)])
+        request.setopt(pycurl.CONNECTTIMEOUT_MS, check_timeout_ms)
+        request.setopt(pycurl.TIMEOUT_MS, check_timeout_ms)
         request.perform()
         request.close()
     except pycurl.error as e:

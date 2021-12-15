@@ -29,6 +29,7 @@ services:
       PRE_RESOLVE: 1
       NAMESERVERS: "127.0.0.11" #use local docker nameserver
       HTTP_HEALTHCHECK: 1
+      HTTP_HEALTHCHECK_TIMEOUT_MS: 200
     healthcheck:
       test: ["CMD", "healthcheck"]
       interval: 1s
@@ -57,6 +58,7 @@ services:
       PRE_RESOLVE: 0
       NAMESERVERS: "127.0.0.11" #use local docker nameserver
       HTTP_HEALTHCHECK: 1
+      HTTP_HEALTHCHECK_TIMEOUT_MS: 200
     healthcheck:
       test: ["CMD", "healthcheck"]
       interval: 1s
@@ -88,6 +90,7 @@ services:
       SMTP_HEALTHCHECK_URL: "smtp://$$TARGET:1025/"
       # mailhog doesn't support HELP command
       SMTP_HEALTHCHECK_COMMAND: "QUIT"
+      SMTP_HEALTHCHECK_TIMEOUT_MS: 200
     healthcheck:
       test: ["CMD", "healthcheck"]
       interval: 1s
@@ -105,6 +108,26 @@ services:
 
   target_smtp:
     image: mailhog/mailhog
+    networks:
+      simulated_outside:
+        aliases:
+          - smtp.example.com
+
+  target_firewalled_not_responding:
+    image: python:3.9
+    volumes:
+      - ./not_responding_tcp_port.py:/bin/not_responding_tcp_port
+    command: ["not_responding_tcp_port", "0.0.0.0", "80"]
+    networks:
+      simulated_outside:
+        aliases:
+          - target.example.com
+
+  target_smtp_firewalled_not_responding:
+    image: python:3.9
+    volumes:
+      - ./not_responding_tcp_port.py:/bin/not_responding_tcp_port
+    command: ["not_responding_tcp_port", "0.0.0.0", "25"]
     networks:
       simulated_outside:
         aliases:

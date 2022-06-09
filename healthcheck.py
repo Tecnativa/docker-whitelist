@@ -123,7 +123,34 @@ def process_healthcheck():
             )
 
 
+def preresolve_healthcheck():
+    """
+    Check that the preresolved ip is still valid now for target
+    :return:
+    """
+    import subprocess
+    from dns.resolver import Resolver
+    pre_resolved_ips = {
+        line.split(":")[2]
+        for line in subprocess.check_output(
+            ["sh", "-c", "grep -R '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline"]
+        )
+        .decode("utf-8")
+        .split("\n")
+        if line
+    }
+    resolver = Resolver()
+    resolver.nameservers = os.environ["NAMESERVERS"].split()
+    target = os.environ["TARGET"]
+    resolved_ips = [answer.address for answer in resolver.resolve(target)]
+    for ip in pre_resolved_ips:
+        if ip not in resolved_ips:
+            error(f"{target} no longer resolves to {ip}")
+
+
 process_healthcheck()
+if os.environ["PRE_RESOLVE"] == "1":
+    preresolve_healthcheck()
 if os.environ.get("HTTP_HEALTHCHECK", "0") == "1":
     http_healthcheck()
 if os.environ.get("SMTP_HEALTHCHECK", "0") == "1":

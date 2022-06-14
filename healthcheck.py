@@ -125,27 +125,54 @@ def process_healthcheck():
 
 def preresolve_healthcheck():
     """
-    Check that the preresolved ip is still valid now for target
+    Check that the pre-resolved ip is still valid now for target
     :return:
     """
-    import subprocess
-    from dns.resolver import Resolver
-    pre_resolved_ips = {
-        line.split(":")[2]
-        for line in subprocess.check_output(
-            ["sh", "-c", "grep -R '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline"]
-        )
-        .decode("utf-8")
-        .split("\n")
-        if line
-    }
-    resolver = Resolver()
-    resolver.nameservers = os.environ["NAMESERVERS"].split()
-    target = os.environ["TARGET"]
-    resolved_ips = [answer.address for answer in resolver.resolve(target)]
-    for ip in pre_resolved_ips:
-        if ip not in resolved_ips:
-            error(f"{target} no longer resolves to {ip}")
+    from tempfile import gettempdir
+
+    load_balancing_dns_fs_flag = os.path.join(
+        gettempdir(), "load_balancing_dns_detected"
+    )
+    if not os.path.exists(load_balancing_dns_fs_flag):
+        # only run the resolver check if a previous run didn't flag the target as being dns load-balanced
+        import subprocess
+
+        from dns.resolver import Resolver
+
+        pre_resolved_ips = {
+            line.split(":")[2]
+            for line in subprocess.check_output(
+                ["sh", "-c", "grep -R '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline"]
+            )
+            .decode("utf-8")
+            .split("\n")
+            if line
+        }
+        resolver = Resolver()
+        resolver.nameservers = os.environ["NAMESERVERS"].split()
+        target = os.environ["TARGET"]
+        resolved_ips = [answer.address for answer in resolver.resolve(target)]
+        for ip in pre_resolved_ips:
+            logger.info(f"checking {target} resolves to {ip}")
+            if ip not in resolved_ips:
+                resolved_ips_2 = [answer.address for answer in resolver.resolve(target)]
+                if resolved_ips_2 == resolved_ips:
+                    error(
+                        f"{target} no longer resolves to {ip}, {resolved_ips}, {resolved_ips_2}"
+                    )
+                else:
+                    resolved_ips_3 = [
+                        answer.address for answer in resolver.resolve(target)
+                    ]
+                    # to make sure we didn't just hit the server switch in dns, we check again before deactivating
+                    # the healthcheck permanently (until the container restarts)
+                    if resolved_ips_3 != resolved_ips_2:
+                        logger.info(
+                            f"{target} seems to be load-balancing with dns ({resolved_ips} != {resolved_ips_2}), "
+                            f"deactivating the resolver healthcheck"
+                        )
+                        with open(f"{load_balancing_dns_fs_flag}", "w") as fp:
+                            fp.write(target)
 
 
 process_healthcheck()

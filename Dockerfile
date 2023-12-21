@@ -1,4 +1,4 @@
-FROM python:3-alpine
+FROM python:3.10-alpine
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["proxy"]
 RUN apk add --no-cache -t .build build-base &&\

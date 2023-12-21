@@ -22,7 +22,6 @@ if os.environ["PRE_RESOLVE"] == "1":
     logging.info("Resolved %s to %s", target, ip)
 
 
-@asyncio.coroutine
 async def netcat(port):
     # Use a persistent BusyBox netcat server in listening mode
     command = ["socat"]

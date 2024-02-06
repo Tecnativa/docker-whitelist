@@ -18,11 +18,10 @@ udp_answers = os.environ.get("UDP_ANSWERS", "1")
 if os.environ["PRE_RESOLVE"] == "1":
     resolver = Resolver()
     resolver.nameservers = os.environ["NAMESERVERS"].split()
-    ip = random.choice([answer.address for answer in resolver.query(target)])
+    ip = random.choice([answer.address for answer in resolver.resolve(target)])
     logging.info("Resolved %s to %s", target, ip)
 
 
-@asyncio.coroutine
 async def netcat(port):
     # Use a persistent BusyBox netcat server in listening mode
     command = ["socat"]

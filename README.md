@@ -35,6 +35,36 @@ Use these environment variables:
 
 Required. It's the host name where the incoming connections will be redirected to.
 
+### `HTTP_HEALTHCHECK`
+
+Default: `0`
+
+Set to `1` to enable healthcheck with pycurl http requests. This is useful if the target
+uses a deployment where the ip of the service gets changed frequently (e.g.
+`accounts.google.com`) and you are using [`PRE_RESOLVE`](#pre_resolve)
+
+#### Automatically restarting unhealthy proxies
+
+When you enable the http healthcheck the container marks itself as unhealthy but does
+nothing. (see https://github.com/moby/moby/pull/22719)
+
+If you want to restart your proxies automatically, you can use
+https://github.com/willfarrell/docker-autoheal.
+
+### `HTTP_HEALTHCHECK_URL`
+
+Default: `http://$TARGET/`
+
+Url to use in [`HTTP_HEALTHCHECK`](#http_healthcheck) if enabled. `$TARGET` gets
+replaced inside the url by the configured [`TARGET`](#target).
+
+### `HTTP_HEALTHCHECK_TIMEOUT_MS`
+
+Default: `2000`
+
+Timeout in milliseconds for http healthcheck. This is used as a timeout for connecting
+and receiving an answer. You may end up with twice the time spend.
+
 ### `MODE`
 
 Default: `tcp`
@@ -93,6 +123,39 @@ Set to `1` to force using the specified [nameservers](#nameservers) to resolve t
 [target](#target) before proxying.
 
 This is especially useful when using a network alias to whitelist an external API.
+
+### `SMTP_HEALTHCHECK`
+
+Default: `0`
+
+Set to `1` to enable healthcheck with pycurl smtp requests. This is useful if the target
+uses a deployment where the ip of the service gets changed frequently (e.g.
+`smtp.eu.sparkpostmail.com`) and you are using [`PRE_RESOLVE`](#pre_resolve)
+
+#### Automatically restarting unhealthy proxies
+
+see [HTTP_HEALTHCHECK](#http_healthcheck)
+
+### `SMTP_HEALTHCHECK_URL`
+
+Default: `smtp://$TARGET/`
+
+Url to use in [`SMTP_HEALTHCHECK`](#smtp_healthcheck) if enabled. `$TARGET` gets
+replaced inside the url by the configured [`TARGET`](#target).
+
+### `SMTP_HEALTHCHECK_COMMAND`
+
+Default: `HELP`
+
+Enables changing the healthcheck command for servers that do not support `HELP` (e.g.
+for [MailHog](https://github.com/mailhog/MailHog) you can use `QUIT`)
+
+### `SMTP_HEALTHCHECK_TIMEOUT_MS`
+
+Default: `2000`
+
+Timeout in milliseconds for smtp healthcheck. This is used as a timeout for connecting
+and receiving an answer. You may end up with twice the time spend.
 
 ### `UDP_ANSWERS`
 

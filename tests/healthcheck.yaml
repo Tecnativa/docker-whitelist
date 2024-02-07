@@ -1,0 +1,141 @@
+version: "3.8"
+services:
+  autoheal:
+    image: willfarrell/autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_INTERVAL: 1
+      AUTOHEAL_CONTAINER_LABEL: "AUTOHEAL_${COMPOSE_PROJECT_NAME}"
+    privileged: "${OS_NEEDS_PRIVILEGES_FOR_DOCKER_SOCK:-false}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  proxy_preresolve:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
+    depends_on:
+      - target
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_preresolve.example.com
+      simulated_outside:
+    environment:
+      TARGET: target.example.com
+      PRE_RESOLVE: 1
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      HTTP_HEALTHCHECK: 1
+      HTTP_HEALTHCHECK_TIMEOUT_MS: 200
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  proxy_without_preresolve:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
+    depends_on:
+      - target
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_without_preresolve.example.com
+      simulated_outside:
+    environment:
+      TARGET: target.example.com
+      # use no pre resolving (target gets resolved on every request)
+      PRE_RESOLVE: 0
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      HTTP_HEALTHCHECK: 1
+      HTTP_HEALTHCHECK_TIMEOUT_MS: 200
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  proxy_smtp:
+    build:
+      dockerfile: Dockerfile
+      context: ..
+      labels:
+        - "AUTOHEAL_${COMPOSE_PROJECT_NAME}=true"
+    depends_on:
+      - target_smtp
+      - autoheal
+    networks:
+      default:
+        aliases:
+          - target_smtp.example.com
+      simulated_outside:
+    environment:
+      TARGET: smtp.example.com
+      PORT: 1025
+      PRE_RESOLVE: 1
+      NAMESERVERS: "127.0.0.11" #use local docker nameserver
+      SMTP_HEALTHCHECK: 1
+      SMTP_HEALTHCHECK_URL: "smtp://$$TARGET:1025/"
+      # mailhog doesn't support HELP command
+      SMTP_HEALTHCHECK_COMMAND: "QUIT"
+      SMTP_HEALTHCHECK_TIMEOUT_MS: 200
+    healthcheck:
+      test: ["CMD", "healthcheck"]
+      interval: 1s
+      timeout: 1s
+      retries: 0
+      start_period: 1s
+    restart: unless-stopped
+
+  target:
+    image: nginx
+    networks:
+      simulated_outside:
+        aliases:
+          - target.example.com
+
+  target_smtp:
+    image: mailhog/mailhog
+    networks:
+      simulated_outside:
+        aliases:
+          - smtp.example.com
+
+  target_firewalled_not_responding:
+    image: python:3.9
+    volumes:
+      - ./not_responding_tcp_port.py:/bin/not_responding_tcp_port
+    command: ["not_responding_tcp_port", "0.0.0.0", "80"]
+    networks:
+      simulated_outside:
+        aliases:
+          - target.example.com
+
+  target_smtp_firewalled_not_responding:
+    image: python:3.9
+    volumes:
+      - ./not_responding_tcp_port.py:/bin/not_responding_tcp_port
+    command: ["not_responding_tcp_port", "0.0.0.0", "25"]
+    networks:
+      simulated_outside:
+        aliases:
+          - smtp.example.com
+
+networks:
+  # we do not allow communication to the outside
+  simulated_outside:
+    internal: true
+  default:
+    internal: true

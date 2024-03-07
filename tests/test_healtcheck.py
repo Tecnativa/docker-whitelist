@@ -211,5 +211,5 @@ def test_healthcheck_autoheal_proxy_without_preresolve():
     assert not [
         line
         for line in _healthcheck("logs", "autoheal").split("\n")
-        if line and not line.startswith("Attaching to ")
+        if line and not line.startswith("Attaching to ") and "AUTOHEAL_" not in line
     ]

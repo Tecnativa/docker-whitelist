@@ -20,7 +20,9 @@ PROXY_TARGET_PAIRS = [
 
 logger = logging.getLogger()
 
-_healthcheck = docker["compose", "-f", HEALTHCHECK_YAML]
+# use docker compose plugin/v2
+docker_compose = docker["compose"]
+_healthcheck = docker_compose["-f", HEALTHCHECK_YAML]
 _get_container_id = _healthcheck["ps", "-q"]
 
 
@@ -53,14 +55,24 @@ def _new_ip(target):
     assert old_ip != new_ip
 
 
-def _wait_for(proxy, message, callback, *args):
+def _wait_for(proxy, messages, callback, *args):
     try:
-        while message not in callback(*args):
+        if isinstance(messages, str):
+            def missing_messages(result):
+                return messages not in result
+
+            messages_for_exception = messages
+        else:
+            def missing_messages(result):
+                return any(message for message in messages if message not in result)
+
+            messages_for_exception = ", ".join(messages)
+        while missing_messages(callback(*args)):
             # try again in one second (to not hammer the CPU)
             sleep(1)
-    except Exception:
+    except BaseException:
         # add additional infos to any error to make tracing down the error easier
-        logger.error("failed waiting for '%s'" % message)
+        logger.error("failed waiting for '%s'" % messages_for_exception)
         logger.error(_healthcheck("logs", "autoheal"))
         logger.error(_healthcheck("ps"))
         logger.error(_healthcheck("exec", "-T", proxy, "healthcheck", retcode=None))
@@ -103,7 +115,7 @@ def test_healthcheck_ok(proxy, target):
     _healthcheck("up", "-d", proxy)
 
     # when everything is ok and target is Up
-    assert "Up" in _healthcheck("ps", target)
+    assert " Up " in _healthcheck("ps", target)
 
     # then healthcheck should be successful
     _healthcheck("exec", "-T", proxy, "healthcheck")
@@ -118,7 +130,7 @@ def test_healthcheck_failing(proxy, target):
 
     # when target is not reachable
     _healthcheck("stop", target)
-    assert " Exit " in _healthcheck("ps", target)
+    assert " Exited " in _healthcheck("ps", "--all", target)
 
     # then healthcheck should return an error (non zero exit code)
     with pytest.raises(
@@ -138,7 +150,7 @@ def test_healthcheck_failing_firewalled(proxy, target):
 
     # when target stops responding
     _healthcheck("stop", target)
-    assert " Exit " in _healthcheck("ps", target)
+    assert " Exited " in _healthcheck("ps", "--all", target)
     _healthcheck(
         "up", "-d", "{target:s}_firewalled_not_responding".format(target=target)
     )
@@ -170,7 +182,7 @@ def test_healthcheck_autoheal(proxy, target):
     _healthcheck("up", "-d", proxy)
     proxy_container_id = _get_container_id(proxy).strip()
     # that was healthy
-    _wait_for(proxy, "Up (healthy)", _healthcheck, "ps", proxy)
+    _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
 
     # when target gets a new ip
     _new_ip(target)
@@ -186,7 +198,7 @@ def test_healthcheck_autoheal(proxy, target):
     )
 
     # and the proxy should become healthy
-    _wait_for(proxy, "Up (healthy)", _healthcheck, "ps", proxy)
+    _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
 
     # and healthcheck should be successful
     _healthcheck("exec", "-T", proxy, "healthcheck")
@@ -197,7 +209,7 @@ def test_healthcheck_autoheal_proxy_without_preresolve():
     proxy = "proxy_without_preresolve"
     _healthcheck("up", "-d", proxy)
     # that was healthy
-    _wait_for(proxy, "Up (healthy)", _healthcheck, "ps", proxy)
+    _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
 
     # when target gets a new ip
     _new_ip("target")

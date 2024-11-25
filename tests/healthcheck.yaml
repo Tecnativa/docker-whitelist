@@ -127,7 +127,7 @@ services:
     image: python:3.9
     volumes:
       - ./not_responding_tcp_port.py:/bin/not_responding_tcp_port
-    command: ["not_responding_tcp_port", "0.0.0.0", "25"]
+    command: ["not_responding_tcp_port", "0.0.0.0", "1025"]
     networks:
       simulated_outside:
         aliases:

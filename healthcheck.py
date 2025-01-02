@@ -3,7 +3,6 @@
 import logging
 import os
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("healthcheck")
 
 
@@ -28,7 +27,15 @@ def http_healthcheck():
     check_timeout_ms = int(os.environ.get("HTTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
-    port = re.search("https?://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "80"
+    port = re.search("https?://[^:]*(?::([^/]+))?", check_url_with_target)[1]
+    if not port:
+        port = "80" if check_url_with_target.startswith("http://") else "443"
+        ports = os.environ.get("PORT").split()
+        if port not in ports:
+            port = ports[0]
+            check_url_with_target = re.sub(
+                "(https?://[^/]+)", r"\1:{}".format(port), check_url_with_target
+            )
     print("checking %s via 127.0.0.1" % check_url_with_target)
     logger.info("checking %s via 127.0.0.1" % check_url_with_target)
     try:
@@ -59,7 +66,15 @@ def smtp_healthcheck():
     check_timeout_ms = int(os.environ.get("SMTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
-    port = re.search("smtp://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "25"
+    port = re.search("smtp://[^:]*(?::([^/]+))?", check_url_with_target)[1]
+    if not port:
+        port = "25"
+        ports = os.environ.get("PORT").split()
+        if port not in ports:
+            port = ports[0]
+            check_url_with_target = re.sub(
+                "(smtp://[^/]+)", r"\1:{}".format(port), check_url_with_target
+            )
     logger.info("checking %s via 127.0.0.1" % check_url_with_target)
     try:
         request = pycurl.Curl()
@@ -175,10 +190,12 @@ def preresolve_healthcheck():
                             fp.write(target)
 
 
-process_healthcheck()
-if os.environ["PRE_RESOLVE"] == "1":
-    preresolve_healthcheck()
-if os.environ.get("HTTP_HEALTHCHECK", "0") == "1":
-    http_healthcheck()
-if os.environ.get("SMTP_HEALTHCHECK", "0") == "1":
-    smtp_healthcheck()
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    process_healthcheck()
+    if os.environ["PRE_RESOLVE"] == "1":
+        preresolve_healthcheck()
+    if os.environ.get("HTTP_HEALTHCHECK", "0") == "1":
+        http_healthcheck()
+    if os.environ.get("SMTP_HEALTHCHECK", "0") == "1":
+        smtp_healthcheck()

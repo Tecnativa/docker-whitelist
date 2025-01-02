@@ -58,11 +58,13 @@ def _new_ip(target):
 def _wait_for(proxy, messages, callback, *args):
     try:
         if isinstance(messages, str):
+
             def missing_messages(result):
                 return messages not in result
 
             messages_for_exception = messages
         else:
+
             def missing_messages(result):
                 return any(message for message in messages if message not in result)
 

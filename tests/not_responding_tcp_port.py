@@ -4,10 +4,10 @@ this is a server that accepts TCP connections but doesn't send any response. it 
 has passed. this is intended for testing timeouts only.
 """
 import errno
+import signal
 import socket
 import sys
 import time
-import signal
 
 
 def keep_client_waiting(server_socket):

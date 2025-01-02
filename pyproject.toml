@@ -9,6 +9,7 @@ authors = ["Tecnativa"]
 [tool.poetry.dependencies]
 python = "^3.9"
 plumbum = "^1.6.9"
+pycurl = "^7.45.6"
 
 [tool.poetry.group.dev.dependencies]
 black = {version = "^20.8b1", allow-prereleases = true}

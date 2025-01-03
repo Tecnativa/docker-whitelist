@@ -43,7 +43,7 @@ def _new_ip(target):
     old_container_id, old_ip = _get_container_id_and_ip(target)
 
     # start a second instance of the target
-    _healthcheck("up", "-d", "--scale", "%s=2" % target, target)
+    _healthcheck_with_error_info("up", "-d", "--scale", "%s=2" % target, target)
 
     # stop and remove the old container
     docker("stop", old_container_id)
@@ -53,6 +53,16 @@ def _new_ip(target):
     new_container_id, new_ip = _get_container_id_and_ip(target)
     assert old_container_id != new_container_id
     assert old_ip != new_ip
+
+
+def _healthcheck_with_error_info(*args, **kwargs):
+    try:
+        _healthcheck(*args, **kwargs)
+    except BaseException:
+        # add additional infos to any error to make tracing down the error easier
+        logger.error(_healthcheck("logs", "autoheal"))
+        logger.error(_healthcheck("ps"))
+        raise
 
 
 def _wait_for(proxy, messages, callback, *args):
@@ -111,6 +121,13 @@ def _cleanup_docker_compose(tmp_path, os_needs_privileges):
             _healthcheck("down", "-v")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _pull_images():
+    start = datetime.now()
+    _healthcheck_with_error_info("pull", "--ignore-buildable")
+    logger.info("pulled images {}".format(datetime.now() - start))
+
+
 @pytest.mark.parametrize("proxy,target", PROXY_TARGET_PAIRS)
 def test_healthcheck_ok(proxy, target):
     # given a started proxy with healthcheck
@@ -120,7 +137,11 @@ def test_healthcheck_ok(proxy, target):
     assert " Up " in _healthcheck("ps", target)
 
     # then healthcheck should be successful
-    _healthcheck("exec", "-T", proxy, "healthcheck")
+    try:
+        _healthcheck("exec", "-T", proxy, "healthcheck")
+    except plumbum.commands.processes.ProcessExecutionError:
+        # at least on the second try (the first one might still happen when proxy is still starting up)
+        _healthcheck_with_error_info("exec", "-T", proxy, "healthcheck")
 
 
 @pytest.mark.parametrize("proxy,target", PROXY_TARGET_PAIRS)
@@ -146,27 +167,27 @@ def test_healthcheck_failing(proxy, target):
 @pytest.mark.timeout(30)
 def test_healthcheck_failing_firewalled(proxy, target):
     # given a started proxy with healthcheck
-    _healthcheck("up", "-d", proxy)
+    _healthcheck_with_error_info("up", "-d", proxy)
     # and autoheal not interfering
-    _healthcheck("stop", "autoheal")
+    _healthcheck_with_error_info("stop", "autoheal")
 
     # when target stops responding
-    _healthcheck("stop", target)
+    _healthcheck_with_error_info("stop", target)
     assert " Exited " in _healthcheck("ps", "--all", target)
-    _healthcheck(
+    _healthcheck_with_error_info(
         "up", "-d", "{target:s}_firewalled_not_responding".format(target=target)
     )
     assert "Up" in _healthcheck(
         "ps", "{target:s}_firewalled_not_responding".format(target=target)
     )
 
-    # then healthcheck should return an error (non zero exit code)
+    # then healthcheck should return an error (non-zero exit code)
     with pytest.raises(
         plumbum.commands.processes.ProcessExecutionError,
         match=r"Unexpected exit code: (1|137)",
     ):
         start = datetime.now()
-        _healthcheck("exec", "-T", proxy, "healthcheck")
+        _healthcheck_with_error_info("exec", "-T", proxy, "healthcheck")
     end = datetime.now()
     # timeout is set to 200ms for tests, so the exception should be raised at earliest after 0.2s
     # and at most 2s after starting considering overhead
@@ -181,7 +202,7 @@ def test_healthcheck_failing_firewalled(proxy, target):
 @pytest.mark.timeout(60)
 def test_healthcheck_autoheal(proxy, target):
     # given a started proxy with healthcheck
-    _healthcheck("up", "-d", proxy)
+    _healthcheck_with_error_info("up", "-d", proxy)
     proxy_container_id = _get_container_id(proxy).strip()
     # that was healthy
     _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
@@ -203,23 +224,24 @@ def test_healthcheck_autoheal(proxy, target):
     _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
 
     # and healthcheck should be successful
-    _healthcheck("exec", "-T", proxy, "healthcheck")
+    _healthcheck_with_error_info("exec", "-T", proxy, "healthcheck")
 
 
+@pytest.mark.timeout(60)
 def test_healthcheck_autoheal_proxy_without_preresolve():
     # given a started proxy with healthcheck
     proxy = "proxy_without_preresolve"
-    _healthcheck("up", "-d", proxy)
+    _healthcheck_with_error_info("up", "-d", proxy)
     # that was healthy
     _wait_for(proxy, (" Up ", " (healthy) "), _healthcheck, "ps", proxy)
 
     # when target gets a new ip
     _new_ip("target")
 
-    # then healthcheck should be always successful (we wait just for 5 seconds/healthchecks)
-    for _ in range(0, 5):
-        _healthcheck("exec", "-T", proxy, "healthcheck")
-        sleep(1)
+    # then healthcheck should be always successful (we wait just for 5 seconds)
+    for _ in range(0, 50):
+        _healthcheck_with_error_info("exec", "-T", proxy, "healthcheck")
+        sleep(0.1)
 
     # and autoheal shouldn't have restarted anything
     assert not [

@@ -3,7 +3,6 @@
 import logging
 import os
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("healthcheck")
 
 
@@ -28,7 +27,15 @@ def http_healthcheck():
     check_timeout_ms = int(os.environ.get("HTTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
-    port = re.search("https?://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "80"
+    port = re.search("https?://[^:]*(?::([^/]+))?", check_url_with_target)[1]
+    if not port:
+        port = "80" if check_url_with_target.startswith("http://") else "443"
+        ports = os.environ.get("PORT").split()
+        if port not in ports:
+            port = ports[0]
+            check_url_with_target = re.sub(
+                "(https?://[^/]+)", r"\1:{}".format(port), check_url_with_target
+            )
     print("checking %s via 127.0.0.1" % check_url_with_target)
     logger.info("checking %s via 127.0.0.1" % check_url_with_target)
     try:
@@ -59,7 +66,15 @@ def smtp_healthcheck():
     check_timeout_ms = int(os.environ.get("SMTP_HEALTHCHECK_TIMEOUT_MS", 2000))
     target = os.environ.get("TARGET", "localhost")
     check_url_with_target = check_url.replace("$TARGET", target)
-    port = re.search("smtp://[^:]*(?::([^/]+))?", check_url_with_target)[1] or "25"
+    port = re.search("smtp://[^:]*(?::([^/]+))?", check_url_with_target)[1]
+    if not port:
+        port = "25"
+        ports = os.environ.get("PORT").split()
+        if port not in ports:
+            port = ports[0]
+            check_url_with_target = re.sub(
+                "(smtp://[^/]+)", r"\1:{}".format(port), check_url_with_target
+            )
     logger.info("checking %s via 127.0.0.1" % check_url_with_target)
     try:
         request = pycurl.Curl()
@@ -91,11 +106,26 @@ def process_healthcheck():
         % (ports, max_connections)
     )
     socat_processes = (
-        subprocess.check_output(["sh", "-c", "grep -R socat /proc/[0-9]*/cmdline"])
+        # grep for all processes running socat, ignoring exit code 2
+        # (unreadable file, happens if some process is stopped while grep is running)
+        subprocess.check_output(
+            [
+                "sh",
+                "-c",
+                "grep -R -s socat /proc/[0-9]*/cmdline"
+                " || grep -R -s socat /proc/[0-9]*/cmdline"
+                ' || status=$? && [ "$status" != "2" ]',
+            ]
+        )
         .decode("utf-8")
         .split("\n")
     )
-    pids = [process.split("/")[2] for process in socat_processes if process]
+    # consider only non-empty lines for socat processes not the ones for grep
+    pids = [
+        process.split("/")[2]
+        for process in socat_processes
+        if process and process.endswith("cmdline:socat")
+    ]
     if len(pids) < len(ports):
         # if we have less than the number of ports socat processes we do not need to count processes per port and can
         # fail fast
@@ -110,7 +140,10 @@ def process_healthcheck():
                 cmd = [part for part in "".join(fp.readlines()).split("\x00") if part]
                 port = cmd[2].split(":")[-1]
                 port_process_count[port] = port_process_count[port] + 1
-        except FileNotFoundError:
+        except (IndexError, KeyError):
+            logger.error("ERROR: unexpected command {} {}".format(pid, cmd))
+            raise
+        except (ProcessLookupError, FileNotFoundError):
             # ignore processes no longer existing (possibly retrieved an answer)
             pass
     for port in ports:
@@ -142,7 +175,11 @@ def preresolve_healthcheck():
         pre_resolved_ips = {
             line.split(":")[2]
             for line in subprocess.check_output(
-                ["sh", "-c", "grep -R '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline"]
+                [
+                    "sh",
+                    "-c",
+                    "grep -R -s '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline || grep -R -s '\\(udp\\|tcp\\)-connect:' /proc/[0-9]*/cmdline",
+                ]
             )
             .decode("utf-8")
             .split("\n")
@@ -175,10 +212,12 @@ def preresolve_healthcheck():
                             fp.write(target)
 
 
-process_healthcheck()
-if os.environ["PRE_RESOLVE"] == "1":
-    preresolve_healthcheck()
-if os.environ.get("HTTP_HEALTHCHECK", "0") == "1":
-    http_healthcheck()
-if os.environ.get("SMTP_HEALTHCHECK", "0") == "1":
-    smtp_healthcheck()
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    process_healthcheck()
+    if os.environ["PRE_RESOLVE"] == "1":
+        preresolve_healthcheck()
+    if os.environ.get("HTTP_HEALTHCHECK", "0") == "1":
+        http_healthcheck()
+    if os.environ.get("SMTP_HEALTHCHECK", "0") == "1":
+        smtp_healthcheck()

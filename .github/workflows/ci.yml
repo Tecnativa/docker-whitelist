@@ -27,17 +27,17 @@ env:
 
 jobs:
   build-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python:
-          - 3.9
+          - "3.10"
     steps:
       # Prepare environment
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       # Set up and run tests
       - name: Install python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
       - name: Generate cache key CACHE
@@ -45,7 +45,7 @@ jobs:
           echo "CACHE=${{ secrets.CACHE_DATE }} ${{ runner.os }} $(python -VV |
           sha256sum | cut -d' ' -f1) ${{ hashFiles('pyproject.toml') }} ${{
           hashFiles('poetry.lock') }}" >> $GITHUB_ENV
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           path: |
             .cache.~
@@ -59,7 +59,7 @@ jobs:
       # Run tests
       - run: poetry run pytest --prebuild
   build-push:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     services:
       registry:
         image: registry:2
@@ -71,8 +71,8 @@ jobs:
       PUSH: ${{ toJSON(github.event_name != 'pull_request') }}
     steps:
       # Set up Docker Environment
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: |
             /tmp/.buildx-cache
@@ -97,14 +97,13 @@ jobs:
             {{major}}
             {{major}}.{{minor}}
       - name: Build and push to local (test) registry
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: ./Dockerfile
           platforms: |
             linux/386
             linux/amd64
-            linux/arm64
           load: false
           push: true
           cache-from: type=local,src=/tmp/.buildx-cache
@@ -140,14 +139,13 @@ jobs:
             {{major}}.{{minor}}
       - name: Build and push to public registry(s)
         if: ${{ fromJSON(env.PUSH) }}
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: ./Dockerfile
           platforms: |
             linux/386
             linux/amd64
-            linux/arm64
           load: false
           push: true
           cache-from: type=local,src=/tmp/.buildx-cache

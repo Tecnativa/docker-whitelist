@@ -8,7 +8,7 @@ from time import sleep
 import plumbum.commands.processes
 import pytest
 from plumbum import TF, local
-from plumbum.cmd import docker, docker_compose, which
+from plumbum.cmd import docker, which
 
 HEALTHCHECK_YAML = os.path.abspath("tests/healthcheck.yaml")
 
@@ -20,7 +20,7 @@ PROXY_TARGET_PAIRS = [
 
 logger = logging.getLogger()
 
-_healthcheck = docker_compose["-f", HEALTHCHECK_YAML]
+_healthcheck = docker["compose", "-f", HEALTHCHECK_YAML]
 _get_container_id = _healthcheck["ps", "-q"]
 
 

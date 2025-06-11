@@ -110,10 +110,16 @@ Only used when [pre-resolving](#pre-resolve) is enabled.
 
 ### `PORT`
 
-Default: `80 443`. If you're proxying HTTP/S services, no need to specify!
+**Default:** `80 443` Ports on which the proxy will listen and forward requests.
 
-The port where this service will listen, and where the [target](#target) service is
-expected to be listening on also.
+-   For standard HTTP/HTTPS services, you **do not** need to change anything (the
+    default covers both port 80 and 443).
+-   If you only need to proxy HTTPS (or your service listens on a different port, or you
+    want to restrict the proxy to TLS only), specify:
+    ```yaml
+    environment:
+        PORT: "443"
+    ```
 
 ### `PRE_RESOLVE`
 

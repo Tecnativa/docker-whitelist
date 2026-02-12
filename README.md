@@ -120,6 +120,22 @@ Only used when [pre-resolving](#pre-resolve) is enabled.
     environment:
         PORT: "443"
     ```
+-   Multiple ports can be specified separated by spaces:
+
+    ```yaml
+    environment:
+        PORT: "80 443 8080"
+    ```
+
+-   Port ranges are also supported using the `start-end` syntax:
+
+    ```yaml
+    environment:
+        PORT: "21 50000-51000"
+    ```
+
+    This is especially useful for protocols like FTP in passive mode, where a fixed
+    passive port range must be proxied in addition to the control port.
 
 ### `PRE_RESOLVE`
 

@@ -9,13 +9,32 @@ from dns.resolver import Resolver
 
 logging.root.setLevel(logging.INFO)
 mode = os.environ["MODE"]
-ports = os.environ["PORT"].split()
 max_connections = os.environ.get("MAX_CONNECTIONS", 100)
 ip = target = os.environ["TARGET"]
 udp_answers = os.environ.get("UDP_ANSWERS", "1")
 
+
+def _expand_ports(port_tokens):
+    for token in port_tokens:
+        token = token.strip()
+        if not token:
+            continue
+        if "-" in token:
+            start, end = token.split("-", 1)
+            start = int(start)
+            end = int(end)
+            if end < start:
+                raise ValueError(f"Invalid port range: {token}")
+            for p in range(start, end + 1):
+                yield str(p)
+        else:
+            yield token
+
+
+ports = list(_expand_ports(os.environ["PORT"].split()))
+
 # Resolve target if required
-if os.environ["PRE_RESOLVE"] == "1":
+if os.environ.get("PRE_RESOLVE", "0") == "1":
     resolver = Resolver()
     resolver.nameservers = os.environ["NAMESERVERS"].split()
     ip = random.choice([answer.address for answer in resolver.resolve(target)])
@@ -41,10 +60,11 @@ async def netcat(port):
     await process.wait()
 
 
-# Wait until all proxies exited, if they ever do
-try:
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(asyncio.gather(*map(netcat, ports)))
-finally:
-    loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.close()
+async def _main():
+    # Create tasks within a running event loop (robust on Python 3.10+)
+    tasks = [asyncio.create_task(netcat(port)) for port in ports]
+    await asyncio.gather(*tasks)
+
+
+if __name__ == "__main__":
+    asyncio.run(_main())

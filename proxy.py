@@ -270,7 +270,13 @@ async def _handle_redirected(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter, resolver: TargetResolver
 ) -> None:
     sock = writer.get_extra_info("socket")
-    assert isinstance(sock, socket.socket)
+    if sock is None:
+        writer.close()
+        return
+    if not hasattr(sock, "getsockopt"):
+        _LOG.error("No socket/getsockopt available from transport: %r", sock)
+        writer.close()
+        return
 
     try:
         dst_port = _get_original_dst_port(sock)

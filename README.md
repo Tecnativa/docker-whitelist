@@ -10,188 +10,162 @@
 
 ## What?
 
-A whitelist proxy that uses socat. 🔌😼
+A transparent TCP whitelist proxy based on iptables and asyncio.
 
 ## Why?
 
-tl;dr: To workaround https://github.com/moby/moby/issues/36174.
+Docker supports internal networks; but when you use them, you cannot
+open outbound connections unless the container is attached to a public
+network.
 
-Basically, Docker supports internal networks; but when you use them, you simply cannot
-open ports from those services, which is not very convenient: you either have full or
-none isolation.
+This proxy allows selected external endpoints to be reachable from
+containers attached to restricted internal networks.
 
-This proxy allows some whitelist endpoints to have network connectivity. It can be used
-for:
+Typical use cases:
 
--   Allowing connection only to some APIs, but not to the rest of the WWW.
--   Exposing ports from a container while still not letting the container access the
-    WWW.
+-   Allowing connections only to specific external APIs.
+-   Allowing limited outbound access while keeping containers isolated.
+-   Whitelisting external services such as SMTP, payment gateways,
+    font/CDN APIs, etc.
 
 ## How?
 
-Use these environment variables:
+The proxy works by:
 
-### `TARGET`
+-   Installing iptables NAT REDIRECT rules (requires `CAP_NET_ADMIN`)
+-   Running a single TCP listener
+-   Redirecting inbound traffic to that listener
+-   Recovering the original destination port using `SO_ORIGINAL_DST`
+-   Forwarding traffic to `TARGET:<original_port>`
 
-Required. It's the host name where the incoming connections will be redirected to.
+Unlike previous versions, this implementation:
 
-### `HTTP_HEALTHCHECK`
+-   Does not spawn one process per port
+-   Uses a single async TCP server
+-   Scales better under load
+-   Handles DNS refresh more reliably
+
+## Required capability
+
+This implementation requires:
+
+``` yaml
+cap_add:
+  - NET_ADMIN
+```
+
+Without this capability, the container cannot configure iptables and
+will fail at startup.
+
+## Environment variables
+
+### TARGET
+
+Required. Hostname where incoming connections will be forwarded.
+
+### PORT
+
+Default: `*` (all TCP ports allowed)
+
+Defines which TCP ports are redirected and proxied.
+
+Examples:
+
+Allow all ports (default):
+
+``` yaml
+environment:
+  TARGET: api.example.com
+```
+
+Restrict to HTTPS only:
+
+``` yaml
+environment:
+  TARGET: api.example.com
+  PORT: "443"
+```
+
+Multiple ports:
+
+``` yaml
+environment:
+  TARGET: api.example.com
+  PORT: "80 443 8080"
+```
+
+Port ranges:
+
+``` yaml
+environment:
+  TARGET: ftp.example.com
+  PORT: "21 50000-51000"
+```
+
+If `PORT` is not set, all TCP ports are allowed.
+
+### PRE_RESOLVE
 
 Default: `0`
 
-Set to `1` to enable healthcheck with pycurl http requests. This is useful if the target
-uses a deployment where the ip of the service gets changed frequently (e.g.
-`accounts.google.com`) and you are using [`PRE_RESOLVE`](#pre_resolve)
+Set to `1` to resolve `TARGET` using the configured `NAMESERVERS`
+instead of the system resolver.
 
-#### Automatically restarting unhealthy proxies
+When enabled, DNS is refreshed periodically.
 
-When you enable the http healthcheck the container marks itself as unhealthy but does
-nothing. (see https://github.com/moby/moby/pull/22719)
+### RESOLVE_INTERVAL
 
-If you want to restart your proxies automatically, you can use
-https://github.com/willfarrell/docker-autoheal.
+Default: `60`
 
-### `HTTP_HEALTHCHECK_URL`
+Interval in seconds to refresh DNS resolution when `PRE_RESOLVE=1`.
+
+If the IP changes, new connections automatically use the new address.
+
+### NAMESERVERS
+
+Default: 208.67.222.222 8.8.8.8 208.67.220.220 8.8.4.4
+
+Used only when `PRE_RESOLVE=1`.
+
+### LISTEN_PORT
+
+Default: `15000`
+
+Internal port where the proxy listens after iptables redirection.
+
+### HTTP_HEALTHCHECK
+
+Default: `0`
+
+Set to `1` to enable HTTP-based healthcheck using pycurl.
+
+### HTTP_HEALTHCHECK_URL
 
 Default: `http://$TARGET/`
 
-Url to use in [`HTTP_HEALTHCHECK`](#http_healthcheck) if enabled. `$TARGET` gets
-replaced inside the url by the configured [`TARGET`](#target).
-
-### `HTTP_HEALTHCHECK_TIMEOUT_MS`
+### HTTP_HEALTHCHECK_TIMEOUT_MS
 
 Default: `2000`
 
-Timeout in milliseconds for http healthcheck. This is used as a timeout for connecting
-and receiving an answer. You may end up with twice the time spend.
-
-### `MODE`
-
-Default: `tcp`
-
-Set to `udp` to proxy in UDP mode.
-
-### `MAX_CONNECTIONS`
-
-Default: `100`
-
-Limits the maximum number of accepted connections at once per port.
-
-#### Setting "unlimited" connections
-
-For each port and open connection a subprocess is spawned. Setting a number too high
-might make your host system unresponsive and prevent you from logging in to it. So be
-very careful with setting this setting to a large number.
-
-The typical linux system can handle up to 32768 so if you need a lot more parallel open
-connections make sure to also set the corresponding variables on your host system. See
-https://stackoverflow.com/questions/6294133/maximum-pid-in-linux for reference. And
-divide this number by at least the number of ports you are running through
-docker-whitelist.
-
-#### What happens when the limit is hit?
-
-docker-whitelist basically starts `socat` so the behaviour is the same. In case no more
-subprocesses can be forked:
-
--   UDP mode: You won't see a difference on the connecting side. But no more packets are
-    forwarded for new connections until the number of connections for this port is
-    reduced.
--   TCP mode: docker-whitelist no longer accepts the connection and your connection will
-    wait until the number of connections for this port is reduced. Your connection may
-    time out.
-
-### `NAMESERVERS`
-
-Default: `208.67.222.222 8.8.8.8 208.67.220.220 8.8.4.4` to use OpenDNS and Google DNS
-resolution servers by default.
-
-Only used when [pre-resolving](#pre-resolve) is enabled.
-
-### `PORT`
-
-**Default:** `80 443` Ports on which the proxy will listen and forward requests.
-
--   For standard HTTP/HTTPS services, you **do not** need to change anything (the
-    default covers both port 80 and 443).
--   If you only need to proxy HTTPS (or your service listens on a different port, or you
-    want to restrict the proxy to TLS only), specify:
-    ```yaml
-    environment:
-        PORT: "443"
-    ```
--   Multiple ports can be specified separated by spaces:
-
-    ```yaml
-    environment:
-        PORT: "80 443 8080"
-    ```
-
--   Port ranges are also supported using the `start-end` syntax:
-
-    ```yaml
-    environment:
-        PORT: "21 50000-51000"
-    ```
-
-    This is especially useful for protocols like FTP in passive mode, where a fixed
-    passive port range must be proxied in addition to the control port.
-
-### `PRE_RESOLVE`
+### SMTP_HEALTHCHECK
 
 Default: `0`
 
-Set to `1` to force using the specified [nameservers](#nameservers) to resolve the
-[target](#target) before proxying.
+Set to `1` to enable SMTP healthcheck using pycurl.
 
-This is especially useful when using a network alias to whitelist an external API.
-
-### `SMTP_HEALTHCHECK`
-
-Default: `0`
-
-Set to `1` to enable healthcheck with pycurl smtp requests. This is useful if the target
-uses a deployment where the ip of the service gets changed frequently (e.g.
-`smtp.eu.sparkpostmail.com`) and you are using [`PRE_RESOLVE`](#pre_resolve)
-
-#### Automatically restarting unhealthy proxies
-
-see [HTTP_HEALTHCHECK](#http_healthcheck)
-
-### `SMTP_HEALTHCHECK_URL`
+### SMTP_HEALTHCHECK_URL
 
 Default: `smtp://$TARGET/`
 
-Url to use in [`SMTP_HEALTHCHECK`](#smtp_healthcheck) if enabled. `$TARGET` gets
-replaced inside the url by the configured [`TARGET`](#target).
-
-### `SMTP_HEALTHCHECK_COMMAND`
+### SMTP_HEALTHCHECK_COMMAND
 
 Default: `HELP`
 
-Enables changing the healthcheck command for servers that do not support `HELP` (e.g.
-for [MailHog](https://github.com/mailhog/MailHog) you can use `QUIT`)
-
-### `SMTP_HEALTHCHECK_TIMEOUT_MS`
+### SMTP_HEALTHCHECK_TIMEOUT_MS
 
 Default: `2000`
 
-Timeout in milliseconds for smtp healthcheck. This is used as a timeout for connecting
-and receiving an answer. You may end up with twice the time spend.
-
-### `UDP_ANSWERS`
-
-Default: `1`
-
-`1` means the process will wait for an answer from the server before the forked child
-process terminates (until this happens the connection counts towards the connection
-limit). Set to `0` if no answers are expected from the server, this prevents
-subprocesses waiting for an answer indefinitely.
-
-Setting to `0` is recommended if you are using this to connect to a syslog server like
-graylog.
-
-### `VERBOSE`
+### VERBOSE
 
 Default: `0`
 
@@ -199,168 +173,18 @@ Set to `1` to log all connections.
 
 ## Example
 
-So say you have a production app called `coolapp` that sends and reads emails, and uses
-Google Font APIs to render some PDF reports.
-
-It is defined in a `docker-compose.yaml` file like this:
-
-```yaml
-# Production deployment
-version: "2.0"
+``` yaml
 services:
-    app:
-        image: Tecnativa/coolapp
-        ports:
-            - "80:80"
-        environment:
-            DB_HOST: db
-        depends_on:
-            - db
-
-    db:
-        image: postgres:alpine
-        volumes:
-            - dbvol:/var/lib/postgresql/data:z
-
-volumes:
-    dbvol:
-```
-
-Now you want to set up a staging environment for your QA team, which includes a fresh
-copy of the production database. To avoid the app to send or read emails, you put all
-into a safe internal network:
-
-```yaml
-# Staging deployment
-version: "2.0"
-services:
-    proxy:
-        image: traefik
-        networks:
-            default:
-            public:
-        ports:
-            - "8080:8080"
-        volumes:
-            # Here you redirect incoming connections to the app container
-            - /etc/traefik/traefik.toml
-
-    app:
-        image: Tecnativa/coolapp
-        environment:
-            DB_HOST: db
-        depends_on:
-            - db
-
-    db:
-        image: postgres:alpine
-
-networks:
-    default:
-        internal: true
-    public:
-```
-
-Now, it turns out your QA detects font problems. Logic! `app` cannot contact
-`fonts.google.com`. Yikes! What to do? 🤷
-
-`tecnativa/whitelist` to the rescue!! 💪🤠
-
-```yaml
-# Staging deployment
-version: "2.0"
-services:
-    fonts_googleapis_proxy:
-        image: tecnativa/whitelist
-        environment:
-            TARGET: fonts.googleapis.com
-            PRE_RESOLVE: 1 # Otherwise it would resolve to localhost
-        networks:
-            # Containers in default restricted network will ask here for fonts
-            default:
-                aliases:
-                    - fonts.googleapis.com
-            # We need public access to "open the door"
-            public:
-
-    fonts_gstatic_proxy:
-        image: tecnativa/whitelist
-        networks:
-            default:
-                aliases:
-                    - fonts.gstatic.com
-            public:
-        environment:
-            TARGET: fonts.gstatic.com
-            PRE_RESOLVE: 1
-
-    proxy:
-        image: traefik
-        networks:
-            default:
-            public:
-        ports:
-            - "8080:8080"
-        volumes:
-            # Here you redirect incoming connections to the app container
-            - /etc/traefik/traefik.toml
-
-    app:
-        image: Tecnativa/coolapp
-        environment:
-            DB_HOST: db
-        depends_on:
-            - db
-
-    db:
-        image: postgres:alpine
-
-networks:
-    default:
-        internal: true
-    public:
-```
-
-And voilà! `app` has fonts, but nothing more. ✋👮
-
-## Development
-
-All the dependencies you need to develop this project (apart from Docker itself) are
-managed with [poetry](https://python-poetry.org/).
-
-To set up your development environment, run:
-
-```bash
-pip install pipx  # If you don't have pipx installed
-pipx install poetry  # Install poetry itself
-poetry install  # Install the python dependencies and setup the development environment
-```
-
-### Testing
-
-To run the tests locally, add `--prebuild` to autobuild the image before testing:
-
-```sh
-poetry run pytest --prebuild
-```
-
-By default, the image that the tests use (and optionally prebuild) is named
-`test:docker-whitelist`. If you prefer, you can build it separately before testing, and
-remove the `--prebuild` flag, to run the tests with that image you built:
-
-```sh
-docker image build -t test:docker-whitelist .
-poetry run pytest
-```
-
-If you want to use a different image, pass the `--image` command line argument with the
-name you want:
-
-```sh
-# To build it automatically
-poetry run pytest --prebuild --image my_custom_image
-
-# To prebuild it separately
-docker image build -t my_custom_image .
-poetry run pytest --image my_custom_image
+  fonts_googleapis_proxy:
+    image: ghcr.io/tecnativa/docker-whitelist:latest
+    cap_add:
+      - NET_ADMIN
+    networks:
+      default:
+        aliases:
+          - fonts.googleapis.com
+      public:
+    environment:
+      TARGET: fonts.googleapis.com
+      PRE_RESOLVE: 1
 ```
